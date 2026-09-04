@@ -1,0 +1,13 @@
+info:
+  name: Get Session
+  type: http
+  seq: 5
+http:
+  method: GET
+  url: http://localhost:9222/api/v1/chats/7e09ee6c962511f1a831c528bd6bc11a/sessions/7e3b86b6962511f1a831c528bd6bc11a
+  auth: inherit
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

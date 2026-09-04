@@ -1,0 +1,30 @@
+info:
+  name: Upload Documents
+  type: http
+  seq: 3
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/datasets/{{datasetId}}/documents
+  headers:
+    - name: Content-Type
+      value: multipart/form-data
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value: []
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: 'const documents = res.body.data
+
+        const documentIds = documents.map((document) => document.id)
+
+        bru.setVar("document_ids", documentIds)'
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

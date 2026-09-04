@@ -1,0 +1,23 @@
+info:
+  name: Delete Datasets
+  type: http
+  seq: 1
+
+http:
+  method: DELETE
+  url: http://localhost:9222/api/v1/datasets
+  body:
+    type: json
+    data: |-
+      {
+        "ids": [
+          "a31bab8289be11f1868deda5f6c5f8fc"
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

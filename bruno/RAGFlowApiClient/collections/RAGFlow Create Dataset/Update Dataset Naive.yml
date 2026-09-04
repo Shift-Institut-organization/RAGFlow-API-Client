@@ -1,0 +1,45 @@
+info:
+  name: Update Dataset Naive
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: http://localhost:9222/api/v1/datasets/{{datasetId}}
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "parser_config": {
+          "ext": {
+            "metadata": [
+              {
+                "description": "A list of explicit, granular demographic facts stated in the chunk. Extract specific demographic attributes of individuals mentioned or broader groups. Do not summarize; extract the literal raw attributes found.",
+                "enum": [],
+                "key": "target_demographics",
+                "type": "list"
+              },
+              {
+                "description": "Extract a list of granular user attributes, demographics, and behavioral routines of individuals who use or would use the Park and Ride system described in the chunk.\n\nKeep the output in the same language as the source chunk. Each list item MUST be a single string adhering strictly to one of these two formats:\n\nFor direct facts: [EXPLICIT] <Attribute / Demographic>\n\nFor grounded context clues: [INFERRED] <Attribute / Routine> (Reason/Evidence: \"<Direct concrete context cue from or quote text>\")\n\nFocus on: age/life-stage, profession/occupation, daily routines/commute frequency, travel purposes (work, events, airport, leisure), financial constraints, and transit pain points.\n\nNever split the inference and its reason into separate list items. If the chunk contains no user-related information or inferable mobility behavior, return an empty list: [].",
+                "enum": [],
+                "key": "user",
+                "type": "list"
+              }
+            ],
+            "built_in_metadata": [],
+            "enable_metadata": true,
+            "llm_id": "gemma4-26b___OpenAI-API@OpenAI-API-Compatible"
+          }
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

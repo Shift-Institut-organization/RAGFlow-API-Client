@@ -1,0 +1,26 @@
+info:
+  name: Converse
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/chats/{{chat_id}}/completions
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "question": "",
+        "stream": false,
+        "session_id": "{{session_id}}"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

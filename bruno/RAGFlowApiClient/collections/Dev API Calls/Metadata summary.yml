@@ -1,0 +1,23 @@
+info:
+  name: Metadata summary
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: http://localhost:9222/api/v1/datasets/adb61e669bb011f1a6cd9fea5b1ff0a4/metadata/summary
+  body:
+    type: json
+    data: |-
+      {
+        "ids": [
+          "a31bab8289be11f1868deda5f6c5f8fc"
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

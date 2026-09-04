@@ -1,0 +1,26 @@
+info:
+  name: Upload Document
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/documents/upload
+  headers:
+    - name: Content-Type
+      value: multipart/form-data
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value: []
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: bru.setVar("requirements", res.body.data)
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

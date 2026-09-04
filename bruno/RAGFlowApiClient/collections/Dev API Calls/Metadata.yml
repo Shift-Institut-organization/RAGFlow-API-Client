@@ -1,0 +1,34 @@
+info:
+  name: Metadata
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/openai/82cd2694962511f1a831c528bd6bc11a/chat/completions
+  body:
+    type: json
+    data: |-
+      {
+        "model": "gemma4-26b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Say this is a test!"
+          }
+        ],
+        "stream": true,
+        "extra_body": {
+          "reference": true,
+          "reference_metadata": {
+            "include": true
+          }
+        }
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

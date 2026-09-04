@@ -1,0 +1,35 @@
+info:
+  name: Create Persona Prompts
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/chat/completions
+  body:
+    type: json
+    data: |-
+      {
+        "chat_id": "{{requirementsChatId}}",
+        "session_id": null,
+        "messages": [
+          {
+            "content": "Hier sind sind die systemrequirements und die persona",
+            "role": "user",
+            "files": [
+              {{requirements}}
+            ]
+          }
+        ],
+        "pass_all_history_messages": false,
+        "reasoning": false,
+        "internet": false,
+        "stream": false
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

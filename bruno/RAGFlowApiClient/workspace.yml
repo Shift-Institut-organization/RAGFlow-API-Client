@@ -1,0 +1,24 @@
+opencollection: 1.0.0
+info:
+  name: "RAGFlowApiClient"
+  type: workspace
+
+collections:
+  - name: "RAGFlow create System prompts"
+    path: "collections/RAGFlow create System prompts"
+  - name: "RAGFlow Create Dataset"
+    path: "collections/RAGFlow Create Dataset"
+  - name: "RAGFlow Create Chats"
+    path: "collections/RAGFlow Create Chats"
+  - name: "RAGFlow single calls"
+    path: "collections/RAGFlow single calls"
+  - name: "RAGFlow converse"
+    path: "collections/RAGFlow converse"
+  - name: "RAGFlow Report"
+    path: "collections/RAGFlow Report"
+  - name: "Dev API Calls"
+    path: "collections/Dev API Calls"
+
+specs:
+
+docs: ''

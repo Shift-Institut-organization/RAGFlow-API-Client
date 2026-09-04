@@ -1,0 +1,23 @@
+info:
+  name: Parse Document
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/datasets/ds-1/chunks
+  body:
+    type: json
+    data: |-
+      {
+        "document_ids": [
+          "doc-1"
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

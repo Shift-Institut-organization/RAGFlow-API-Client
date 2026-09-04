@@ -1,0 +1,56 @@
+# Environment variable files containing secrets, API keys, and endpoint tokens
+.env
+
+# Bruno test run outputs and JSON reports.
+# EXCLUDED BECAUSE: These files contain runtime execution dumps, internal database
+# IDs (datasetId, chatId), extracted document chunk texts, and local machine filesystem paths
+# (e.g. C:\Users\<Username>\...) that must not be committed to Git.
+**/output.json
+**/output_*.json
+bruno/**/*.json
+!bruno/**/package.json
+
+# Scratch scripts, temporary scripts, and runtime logs
+*.log
+dummy_scripts/
+scratch/
+ 
+# Raw source files, document datasets, and user-provided PDFs/DOCs
+data/
+data/**
+
+# Python virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing, coverage, and linting caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build and package distribution outputs
+build/
+dist/
+*.egg-info/
+
+# Editor and IDE configurations (contain developer-specific local paths and settings)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS-generated metadata files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agent / Local IDE internal configurations
+.gemini/

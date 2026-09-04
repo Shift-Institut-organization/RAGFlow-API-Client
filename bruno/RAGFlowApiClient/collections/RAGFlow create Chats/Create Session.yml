@@ -1,0 +1,26 @@
+info:
+  name: Create Session
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/chats/{{name1}}/sessions
+  body:
+    type: json
+    data: |-
+      {
+        "name": "chat1"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: bru.setVar("session1", res.body.data.id)
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

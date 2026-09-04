@@ -1,0 +1,23 @@
+info:
+  name: Delete Chats
+  type: http
+  seq: 2
+
+http:
+  method: DELETE
+  url: http://localhost:9222/api/v1/chats
+  body:
+    type: json
+    data: |-
+      {
+        "ids": [
+          "c5cfe28e8c1011f19e4201c325273257"
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
