@@ -108,6 +108,7 @@ def run_bruno_request(
     request_file_path: Path,
     env: str | None = None,
     output_json_path: Path | None = None,
+    token: str | None = None,
 ) -> dict[str, Any] | None:
     """
     Execute a single Bruno request file (.yml) via Bruno CLI (`bru run <request.yml>`).
@@ -136,7 +137,7 @@ def run_bruno_request(
     logger.debug(f"Exact bru command: {' '.join(cmd)}")
 
     try:
-        with temporary_collection_token(col_dir):
+        with temporary_collection_token(col_dir, token=token):
             result = subprocess.run(
                 cmd,
                 cwd=str(col_dir),

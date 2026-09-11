@@ -281,9 +281,7 @@ def temporary_collection_token(collection_dir: Path | str, token: str | None = N
         yield
         return
 
-    effective_token = (
-        token if token is not None else (os.environ.get("RAGFLOW_API_KEY") or os.environ.get("API_KEY") or "")
-    )
+    effective_token = token if token else (os.environ.get("RAGFLOW_API_KEY") or os.environ.get("API_KEY") or "")
     if not effective_token:
         yield
         return
