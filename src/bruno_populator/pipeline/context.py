@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from bruno_populator.config import AppConfig, load_app_config
 from bruno_populator.logger import get_logger
-from paths import CONTEXT_STATE_FILENAME
+from paths import CONTEXT_STATE_FILENAME, STEPS_DATA_DIR_NAME
 
 logger = get_logger("bruno_populator.pipeline.context")
 
@@ -65,6 +65,32 @@ class PipelineContext(BaseModel):
     @property
     def state_file_path(self) -> Path:
         return self.data_dir / CONTEXT_STATE_FILENAME
+
+    @property
+    def steps_dir(self) -> Path:
+        """Return Path to 'steps' directory inside data_dir, ensuring it exists."""
+        path = (self.data_dir / STEPS_DATA_DIR_NAME).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_output_json_path(self, step_name: str, item_key: str | None = None) -> Path:
+        """
+        Construct destination path for a step execution report within steps_dir.
+
+        Args:
+            step_name: Human-readable step name (e.g. 'RAGFlow Create Dataset').
+            item_key: Optional item identifier for iterating steps (e.g. 'persona_dr_thomas_weber').
+
+        Returns:
+            Absolute Path to target JSON file inside self.steps_dir.
+        """
+        sanitized_step = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in step_name).strip()
+
+        if not item_key:
+            return self.steps_dir / f"{sanitized_step}.json"
+
+        sanitized_key = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in item_key)
+        return self.steps_dir / f"{sanitized_step}_{sanitized_key}.json"
 
     def set_data(self, key: str, value: Any) -> None:
         """Store key-value data in pipeline context metadata."""

@@ -303,7 +303,6 @@ def test_pipeline_runner_skip_flags(tmp_path: Path, monkeypatch):
     step.skip_preprocess = True
     step.skip_run = False
     step.skip_postprocess = True
-    step.get_output_json_path.return_value = tmp_path / "output.json"
 
     # Mock runner execution
     monkeypatch.setattr("bruno_populator.pipeline.orchestrator.run_bruno_collection", lambda cfg: {})
@@ -863,8 +862,9 @@ def test_sequential_document_parsing_all_documents_get_second_attempt_before_har
 def test_pipeline_runner_skip_run_success(mock_run_bruno, tmp_path: Path):
     col = tmp_path / "col"
     col.mkdir()
-    output_json = col / "output.json"
-    output_json.write_text(json.dumps([{"results": [{"response": "ok"}]}]), encoding="utf-8")
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    context = PipelineContext(data_dir=data_dir)
 
     class SkipRunStep(MockStep):
         def __init__(self, target_dir: Path):
@@ -872,7 +872,10 @@ def test_pipeline_runner_skip_run_success(mock_run_bruno, tmp_path: Path):
             self._skip_run = True
 
     step = SkipRunStep(col)
-    runner = PipelineRunner(steps=[step])
+    output_json = context.get_output_json_path(step.name)
+    output_json.write_text(json.dumps([{"results": [{"response": "ok"}]}]), encoding="utf-8")
+
+    runner = PipelineRunner(steps=[step], context=context)
     ctx = runner.run()
 
     assert step.preprocessed and step.postprocessed
@@ -884,6 +887,9 @@ def test_pipeline_runner_skip_run_success(mock_run_bruno, tmp_path: Path):
 def test_pipeline_runner_skip_run_hard_fails_if_output_json_missing(mock_run_bruno, tmp_path: Path):
     col = tmp_path / "col"
     col.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    context = PipelineContext(data_dir=data_dir)
 
     class SkipRunStep(MockStep):
         def __init__(self, target_dir: Path):
@@ -891,7 +897,7 @@ def test_pipeline_runner_skip_run_hard_fails_if_output_json_missing(mock_run_bru
             self._skip_run = True
 
     step = SkipRunStep(col)
-    runner = PipelineRunner(steps=[step])
+    runner = PipelineRunner(steps=[step], context=context)
 
     with pytest.raises(FileNotFoundError, match="required output JSON report not found"):
         runner.run()
@@ -899,14 +905,13 @@ def test_pipeline_runner_skip_run_hard_fails_if_output_json_missing(mock_run_bru
     assert mock_run_bruno.call_count == 0
 
 
-def test_step_get_output_json_path(tmp_path: Path):
-    col = tmp_path / "col"
-    col.mkdir()
-    step = MockStep("MockStep", col)
+def test_context_get_output_json_path(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    context = PipelineContext(data_dir=data_dir)
 
-    assert step.get_output_json_path(item=None) == col / "output.json"
-    assert step.get_output_json_path(item="item1") == col / "output_item1.json"
-    assert step.get_output_json_path(item=("persona_test", "prompt")) == col / "output_persona_test.json"
+    assert context.get_output_json_path("Step One") == data_dir / "steps" / "Step One.json"
+    assert context.get_output_json_path("Step One", "persona_a") == data_dir / "steps" / "Step One_persona_a.json"
 
 
 def test_get_item_key_not_implemented_error(tmp_path: Path):
@@ -936,7 +941,7 @@ def test_get_item_key_not_implemented_error(tmp_path: Path):
 
     step = UnimplementedItemStep(collection_dir=tmp_path)
     with pytest.raises(NotImplementedError, match="utilizes item iteration but has not overridden get_item_key"):
-        step.get_output_json_path(item="some_item")
+        step.get_item_key("some_item")
 
 
 def test_verify_result_and_set_context_not_implemented_error(tmp_path: Path):
@@ -1028,6 +1033,9 @@ def test_verify_bruno_collection_results_valid_and_failures(tmp_path: Path):
 def test_pipeline_runner_item_iteration(tmp_path: Path):
     col = tmp_path / "col"
     col.mkdir()
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    context = PipelineContext(data_dir=data_dir)
 
     class IterativeStep(MockStep):
         def __init__(self, target_dir: Path, items: list | None = None):
@@ -1040,11 +1048,13 @@ def test_pipeline_runner_item_iteration(tmp_path: Path):
     valid_step = IterativeStep(col, items=["item1", "item2"])
     valid_step._skip_run = True
 
-    # Item-specific output reports
-    (col / "output_item1.json").write_text(json.dumps([]), encoding="utf-8")
-    (col / "output_item2.json").write_text(json.dumps([]), encoding="utf-8")
+    # Item-specific output reports inside context.steps_dir
+    report1 = context.get_output_json_path(valid_step.name, item_key="item1")
+    report2 = context.get_output_json_path(valid_step.name, item_key="item2")
+    report1.write_text(json.dumps([]), encoding="utf-8")
+    report2.write_text(json.dumps([]), encoding="utf-8")
 
-    runner = PipelineRunner(steps=[valid_step])
+    runner = PipelineRunner(steps=[valid_step], context=context)
     ctx = runner.run()
     assert valid_step.preprocessed and valid_step.postprocessed
     assert ctx.get_data("IterativeStep_post") is True

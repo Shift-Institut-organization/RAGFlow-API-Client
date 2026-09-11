@@ -8,7 +8,7 @@ from typing import Any
 
 from bruno_populator.exceptions import BrunoPopulatorError
 from bruno_populator.pipeline.context import PipelineContext
-from paths import BRUNO_DIR, OUTPUT_JSON_FILENAME
+from paths import BRUNO_DIR
 
 
 class BaseCollectionStep(ABC):
@@ -109,20 +109,6 @@ class BaseCollectionStep(ABC):
         raise NotImplementedError(
             f"Step '{self.name}' utilizes item iteration but has not overridden get_item_key(item)."
         )
-
-    def get_output_json_path(self, item: Any | None = None) -> Path:
-        """
-        Determine output JSON report file path for this step or specific item.
-
-        Returns standard collection_dir / 'output.json' for single-execution steps.
-        For item iteration, invokes get_item_key(item) and returns `output_<sanitized_key>.json`.
-        """
-        if item is None:
-            return self.collection_dir / OUTPUT_JSON_FILENAME
-
-        item_key = self.get_item_key(item)
-        sanitized = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in item_key)
-        return self.collection_dir / f"output_{sanitized}.json"
 
     def get_items(self, context: PipelineContext) -> list[Any] | None:
         """

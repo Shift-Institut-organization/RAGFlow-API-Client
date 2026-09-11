@@ -9,6 +9,7 @@ from paths import (
     REQUIREMENTS_FILENAME,
     SOURCES_DIR_NAME,
     SRC_DIR,
+    STEPS_DATA_DIR_NAME,
     STEPS_DIR,
     SUMMARY_JSON_FILENAME,
     USER_FEATURES_FILENAME,
@@ -34,3 +35,4 @@ def test_project_paths_hierarchy():
     assert SUMMARY_JSON_FILENAME == "summary.json"
     assert USER_FEATURES_FILENAME == "user_features.json"
     assert SOURCES_DIR_NAME == "sources"
+    assert STEPS_DATA_DIR_NAME == "steps"

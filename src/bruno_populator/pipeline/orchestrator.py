@@ -72,7 +72,8 @@ class PipelineRunner:
                 raise BrunoPopulatorError(f"Step '{step.name}' preprocessing error: {exc}") from exc
 
         # Phase 2: Execution via Bruno CLI
-        output_json_path = step.get_output_json_path(item)
+        item_key = step.get_item_key(item) if item is not None else None
+        output_json_path = self.context.get_output_json_path(step.name, item_key=item_key)
         if step.skip_run:
             item_info = f" (item '{item[0] if isinstance(item, tuple | list) and item else item}')" if item else ""
             logger.info(f"--> [Phase 2/3] Executing Bruno collection '{step.name}' skipped (skip_run=True).")
