@@ -85,3 +85,24 @@ def test_load_app_config_from_env(tmp_path: Path):
     config = load_app_config(env_file)
     assert config.base_url == "http://localhost:9000"
     assert config.debug is True
+
+
+def test_load_app_config_missing_data_dir_raises(tmp_path: Path, monkeypatch):
+    from bruno_populator.config import load_app_config
+
+    monkeypatch.delenv("DATA_DIR", raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text('BASE_URL="http://localhost:9000"\nDEBUG=true\n', encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="No project data directory specified"):
+        load_app_config(env_file)
+
+
+def test_app_config_missing_data_dir_raises():
+    from bruno_populator.config import AppConfig
+
+    with pytest.raises((ConfigurationError, Exception)):
+        AppConfig()  # type: ignore[call-arg]
+
+    with pytest.raises(ConfigurationError, match="No project data directory specified"):
+        AppConfig(data_dir="")  # type: ignore[arg-type]

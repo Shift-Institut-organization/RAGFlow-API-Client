@@ -206,9 +206,9 @@ def test_base_step_token_helpers(tmp_path: Path):
     assert 'token: ""' in opencol.read_text(encoding="utf-8")
 
 
-def test_app_config_and_pipeline_context_api_key(monkeypatch):
+def test_app_config_and_pipeline_context_api_key(monkeypatch, tmp_path: Path):
     """Verify AppConfig and PipelineContext expose api_key."""
     monkeypatch.setenv("RAGFLOW_API_KEY", "cfg-test-key")
-    cfg = AppConfig(api_key="cfg-test-key")
+    cfg = AppConfig(api_key="cfg-test-key", data_dir=tmp_path)
     ctx = PipelineContext(config=cfg)
     assert ctx.api_key == "cfg-test-key"

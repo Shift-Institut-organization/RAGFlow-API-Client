@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from bruno_populator.exceptions import ConfigurationError
 from paths import (
-    DEFAULT_DATA_DIR,
     PROJECT_ROOT,
     REQUIREMENTS_FILENAME,
     SOURCES_DIR_NAME,
@@ -21,17 +20,21 @@ class AppConfig(BaseModel):
     base_url: str = "http://localhost:9222"
     api_key: str = ""
     debug: bool = False
-    data_dir: Path = Field(default_factory=lambda: DEFAULT_DATA_DIR)
+    data_dir: Path
 
     @field_validator("data_dir", mode="before")
     @classmethod
     def resolve_data_dir(cls, v: Any) -> Path:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            raise ConfigurationError(
+                "[Config Error] No project data directory specified. Please configure 'data_dir' (or DATA_DIR in .env)."
+            )
         if isinstance(v, str):
-            p = Path(v)
+            p = Path(v.strip())
             return p if p.is_absolute() else (PROJECT_ROOT / p).resolve()
         elif isinstance(v, Path):
             return v if v.is_absolute() else (PROJECT_ROOT / v).resolve()
-        return DEFAULT_DATA_DIR.resolve()
+        raise ConfigurationError(f"[Config Error] Invalid data_dir value '{v}'. Expected a string path or Path object.")
 
     def validate_data_dir_assets(self) -> tuple[Path, Path]:
         """
@@ -109,23 +112,35 @@ def load_dotenv(env_file_path: Path | None = None, override: bool = False) -> No
 load_dotenv()
 
 
-def load_app_config(env_file_path: Path | None = None) -> AppConfig:
+def load_app_config(
+    env_file_path: Path | None = None,
+    data_dir: Path | str | None = None,
+    base_url: str | None = None,
+) -> AppConfig:
     """
     Load AppConfig from environment variables or .env file at env_file_path / PROJECT_ROOT / '.env'.
+
+    Hard fails with ConfigurationError if no data_dir is specified or configured.
     """
     load_dotenv(env_file_path)
 
-    base_url = os.environ.get("BASE_URL", "http://localhost:9222")
+    cfg_base_url = base_url if base_url is not None else os.environ.get("BASE_URL", "http://localhost:9222")
     api_key = os.environ.get("RAGFLOW_API_KEY") or os.environ.get("API_KEY") or ""
     debug_str = os.environ.get("DEBUG", "false")
     debug = str(debug_str).lower() in ("true", "1", "yes")
-    data_dir_val = os.environ.get("DATA_DIR", "data/Bicycle")
+
+    raw_data_dir = data_dir if data_dir is not None else os.environ.get("DATA_DIR")
+    if not raw_data_dir or (isinstance(raw_data_dir, str) and not raw_data_dir.strip()):
+        raise ConfigurationError(
+            "[Config Error] No project data directory specified. "
+            "Please configure the 'DATA_DIR' environment variable in your .env file or pass data_dir explicitly."
+        )
 
     config = AppConfig(
-        base_url=base_url,
+        base_url=cfg_base_url,
         api_key=api_key,
         debug=debug,
-        data_dir=data_dir_val,
+        data_dir=raw_data_dir,
     )
     return config
 

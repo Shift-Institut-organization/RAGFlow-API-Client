@@ -27,18 +27,7 @@ class PipelineContext(BaseModel):
         **data: Any,
     ):
         if config is None:
-            if base_url is not None or data_dir is not None:
-                default_cfg = load_app_config()
-                cfg_base_url = base_url if base_url is not None else default_cfg.base_url
-                cfg_data_dir = data_dir if data_dir is not None else default_cfg.data_dir
-                config = AppConfig(
-                    base_url=cfg_base_url,
-                    data_dir=cfg_data_dir,
-                    api_key=default_cfg.api_key,
-                    debug=default_cfg.debug,
-                )
-            else:
-                config = load_app_config()
+            config = load_app_config(data_dir=data_dir, base_url=base_url)
         data["config"] = config
         super().__init__(**data)
 
