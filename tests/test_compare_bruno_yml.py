@@ -53,3 +53,10 @@ def test_step_preprocess_execution(step_cls: type[BaseCollectionStep], tmp_path:
 
     assert col_copy.exists()
     assert list(col_copy.glob("*.yml"))
+
+    if step_cls == CreateSystemPromptsStep:
+        chat_yml = (col_copy / "Create Chat System Prompt.yml").read_text(encoding="utf-8")
+        assert "Create System Prompt Chats Auto - data" in chat_yml
+    elif step_cls == CreateDatasetStep:
+        ds_yml = (col_copy / "Create Dataset.yml").read_text(encoding="utf-8")
+        assert '"name": "data"' in ds_yml

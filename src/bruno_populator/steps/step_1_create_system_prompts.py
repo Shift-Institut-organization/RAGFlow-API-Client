@@ -6,7 +6,11 @@ from bruno_populator.exceptions import BrunoPopulatorError
 from bruno_populator.logger import get_logger
 from bruno_populator.pipeline.base_step import BaseCollectionStep
 from bruno_populator.pipeline.context import PipelineContext
-from bruno_populator.yml_injector import inject_prompt_into_bruno_yml, update_multipart_files_in_yml
+from bruno_populator.yml_injector import (
+    inject_prompt_into_bruno_yml,
+    update_multipart_files_in_yml,
+    update_yml_payload_key,
+)
 from paths import GENERATED_PROMPTS_DIR, PROMPTS_DIR
 
 logger = get_logger("bruno_populator.steps.create_system_prompts")
@@ -126,7 +130,7 @@ class CreateSystemPromptsStep(BaseCollectionStep):
         """Inject Markdown prompt and file attachment into Bruno YML files before execution."""
         logger.info(f"Preprocessing Bruno request files for '{self.name}'...")
 
-        # 1. Inject prompt into Create Chat System Prompt.yml
+        # 1. Inject prompt and project chat name into Create Chat System Prompt.yml
         create_prompt_yml = self.collection_dir / "Create Chat System Prompt.yml"
         if not create_prompt_yml.exists():
             raise FileNotFoundError(f"Bruno request file not found: {create_prompt_yml}")
@@ -136,6 +140,10 @@ class CreateSystemPromptsStep(BaseCollectionStep):
             prompt_path=self.prompt_path,
             key_path="prompt_config.system",
         )
+
+        chat_name = f"Create System Prompt Chats Auto - {context.project_name}"
+        update_yml_payload_key(create_prompt_yml, "name", chat_name)
+        logger.info(f"Configured System Prompt chat name to '{chat_name}'.")
 
         # 2. Attach requirements.md file to Upload Document.yml
         upload_doc_yml = self.collection_dir / "Upload Document.yml"
@@ -155,6 +163,14 @@ class CreateSystemPromptsStep(BaseCollectionStep):
         request_entries = self.verify_bruno_collection_results(result_data, expected_request_count=3)
 
         # 1. Validate Request #1 (Create Chat System Prompt)
+        code = self.extract_value_by_key_path(request_entries[0], "response.data.code")
+        if code is not None and code != 0:
+            msg = self.extract_value_by_key_path(request_entries[0], "response.data.message") or "Unknown error"
+            raise BrunoPopulatorError(
+                f"RAGFlow API error in Request #1 (Create Chat System Prompt): code={code}, message='{msg}'. "
+                f"Note: RAGFlow rejects duplicate chat names. Ensure chat 'Create System Prompt Chats Auto - {context.project_name}' does not already exist."
+            )
+
         chat_id = self.extract_value_by_key_path(request_entries[0], "response.data.data.id")
         if not chat_id:
             raise BrunoPopulatorError(

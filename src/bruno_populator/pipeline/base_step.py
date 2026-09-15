@@ -226,8 +226,19 @@ class BaseCollectionStep(ABC):
                     api_code = resp_data.get("code")
                     api_msg = resp_data.get("message", "")
                     if api_code != 0:
+                        detail = ""
+                        if (
+                            api_code == 102
+                            or "duplicated" in str(api_msg).lower()
+                            or "already exists" in str(api_msg).lower()
+                        ):
+                            detail = (
+                                " Note: RAGFlow rejects duplicate names. "
+                                "Ensure resource names and project folders are uniquely named."
+                            )
                         raise BrunoPopulatorError(
-                            f"RAGFlow API error in request '{req_name}' for step '{self.name}': code={api_code}, message='{api_msg}'."
+                            f"RAGFlow API error in request '{req_name}' for step '{self.name}': "
+                            f"code={api_code}, message='{api_msg}'.{detail}"
                         )
 
         return request_entries

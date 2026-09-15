@@ -727,9 +727,12 @@ def test_sequential_document_parsing_recheck_completes_in_background(monkeypatch
         if trigger_counts.get("doc2", 0) >= 1:
             doc1_run = "DONE"
             doc1_prog = 1.0
-        else:
+        elif trigger_counts.get("doc1", 0) >= 1:
             doc1_run = "RUNNING"
             doc1_prog = 0.1
+        else:
+            doc1_run = "UNSTART"
+            doc1_prog = 0.0
 
         doc2_run = "DONE" if trigger_counts.get("doc2", 0) >= 1 else "UNSTART"
 
@@ -739,7 +742,7 @@ def test_sequential_document_parsing_recheck_completes_in_background(monkeypatch
                 "name": "doc1.pdf",
                 "run": doc1_run,
                 "progress": doc1_prog,
-                "chunk_count": 1,
+                "chunk_count": 1 if trigger_counts.get("doc1", 0) >= 1 else 0,
                 "progress_msg": "",
             },
             {
@@ -776,15 +779,17 @@ def test_sequential_document_parsing_recheck_running_with_progress_finishes(monk
     def mock_fetch(ctx, ds_id):
         nonlocal phase2_polls
         time.sleep(0.002)
+        doc1_count = trigger_counts.get("doc1", 0)
         if trigger_counts.get("doc2", 0) == 0:
+            doc1_run = "RUNNING" if doc1_count >= 1 else "UNSTART"
             return [
                 {
                     "id": "doc1",
                     "name": "doc1.pdf",
-                    "run": "RUNNING",
-                    "progress": 0.1,
-                    "chunk_count": 1,
-                    "progress_msg": "OCR",
+                    "run": doc1_run,
+                    "progress": 0.1 if doc1_count >= 1 else 0.0,
+                    "chunk_count": 1 if doc1_count >= 1 else 0,
+                    "progress_msg": "OCR" if doc1_count >= 1 else "",
                 },
                 {
                     "id": "doc2",
@@ -1150,3 +1155,396 @@ http:
     chats = ctx.get_data("created_chats")
     assert isinstance(chats, dict)
     assert chats["persona_test"] == {"chat_id": "chat-111", "session_id": "session-222"}
+
+
+def test_get_pdf_page_count_pypdf(tmp_path: Path):
+    import pypdf
+
+    from bruno_populator.pdf_splitter import get_pdf_page_count
+
+    pdf_file = tmp_path / "sample.pdf"
+    writer = pypdf.PdfWriter()
+    for _ in range(7):
+        writer.add_blank_page(width=72, height=72)
+    with open(pdf_file, "wb") as f:
+        writer.write(f)
+
+    assert get_pdf_page_count(pdf_file) == 7
+
+
+def test_split_pdf_file_bounded_parts(tmp_path: Path):
+    import pypdf
+
+    from bruno_populator.pdf_splitter import get_pdf_page_count, split_pdf_file
+
+    pdf_file = tmp_path / "large_doc.pdf"
+    writer = pypdf.PdfWriter()
+    for _ in range(85):
+        writer.add_blank_page(width=72, height=72)
+    with open(pdf_file, "wb") as f:
+        writer.write(f)
+
+    output_dir = tmp_path / "staged"
+    parts = split_pdf_file(pdf_file, output_dir, max_pages=40)
+
+    assert len(parts) == 3
+    assert parts[0].name == "large_doc_p001-040.pdf"
+    assert parts[1].name == "large_doc_p041-080.pdf"
+    assert parts[2].name == "large_doc_p081-085.pdf"
+
+    assert get_pdf_page_count(parts[0]) == 40
+    assert get_pdf_page_count(parts[1]) == 40
+    assert get_pdf_page_count(parts[2]) == 5
+
+
+def test_split_pdf_file_within_limit(tmp_path: Path):
+    import pypdf
+
+    from bruno_populator.pdf_splitter import split_pdf_file
+
+    pdf_file = tmp_path / "small_doc.pdf"
+    writer = pypdf.PdfWriter()
+    for _ in range(12):
+        writer.add_blank_page(width=72, height=72)
+    with open(pdf_file, "wb") as f:
+        writer.write(f)
+
+    output_dir = tmp_path / "staged"
+    parts = split_pdf_file(pdf_file, output_dir, max_pages=40)
+
+    assert len(parts) == 1
+    assert parts[0].name == "small_doc.pdf"
+    assert parts[0].exists()
+
+
+def test_prepare_staged_documents(tmp_path: Path):
+    import pypdf
+
+    from bruno_populator.pdf_splitter import get_pdf_page_count, prepare_staged_documents
+
+    src_dir = tmp_path / "sources"
+    src_dir.mkdir()
+
+    # Create one small (10 pages) and one large (55 pages) PDF
+    small = src_dir / "doc_small.pdf"
+    w1 = pypdf.PdfWriter()
+    for _ in range(10):
+        w1.add_blank_page(width=72, height=72)
+    with open(small, "wb") as f:
+        w1.write(f)
+
+    large = src_dir / "doc_large.pdf"
+    w2 = pypdf.PdfWriter()
+    for _ in range(55):
+        w2.add_blank_page(width=72, height=72)
+    with open(large, "wb") as f:
+        w2.write(f)
+
+    staged_dir = tmp_path / "staged"
+    staged = prepare_staged_documents([small, large], staged_dir, max_pages=40)
+
+    # 1 small + 2 parts from large = 3 staged files
+    assert len(staged) == 3
+    assert all(get_pdf_page_count(p) <= 40 for p in staged)
+    staged_names = [p.name for p in staged]
+    assert "doc_small.pdf" in staged_names
+    assert "doc_large_p001-040.pdf" in staged_names
+    assert "doc_large_p041-055.pdf" in staged_names
+
+
+def test_cancel_document_parse(monkeypatch):
+    from bruno_populator.steps.step_2_create_dataset import cancel_document_parse
+
+    context = PipelineContext(base_url="http://localhost:9222")
+    executed_requests = []
+
+    def mock_run(req_file):
+        executed_requests.append(req_file.name)
+        return [{"results": [{"response": {"status": 200, "data": {"code": 0}}}]}]
+
+    monkeypatch.setattr("bruno_populator.steps.step_2_create_dataset.run_bruno_request", mock_run)
+
+    cancel_document_parse(context, "dataset-xyz", "doc-123")
+    assert executed_requests == ["Cancel Document Parse.yml"]
+
+
+def test_poll_single_document_status_actively_cancels_on_timeout(monkeypatch):
+    from bruno_populator.steps.step_2_create_dataset import poll_single_document_status
+
+    context = PipelineContext()
+    cancelled_docs = []
+
+    def mock_fetch(ctx, ds_id):
+        return [
+            {
+                "id": "doc1",
+                "name": "doc1.pdf",
+                "run": "RUNNING",
+                "progress": 0.0,
+                "chunk_count": 0,
+                "progress_msg": "Stalled",
+            }
+        ]
+
+    def mock_cancel(ctx, ds_id, doc_id):
+        cancelled_docs.append(doc_id)
+
+    monkeypatch.setattr("bruno_populator.steps.step_2_create_dataset.fetch_documents_status", mock_fetch)
+    monkeypatch.setattr("bruno_populator.steps.step_2_create_dataset.cancel_document_parse", mock_cancel)
+
+    success, status, msg, latest_doc = poll_single_document_status(
+        context=context,
+        dataset_id="ds-test",
+        doc_id="doc1",
+        doc_name="doc1.pdf",
+        poll_interval=0.001,
+        max_timeout=0.005,
+    )
+
+    assert success is False
+    assert status == "CANCEL"
+    assert "cancelled" in msg
+    assert cancelled_docs == ["doc1"]
+
+
+def test_sort_documents_by_length(tmp_path: Path):
+    import pypdf
+
+    from bruno_populator.steps.step_2_create_dataset import sort_documents_by_length
+
+    # Create dummy PDFs with 30 pages and 10 pages
+    p30 = tmp_path / "doc30.pdf"
+    w1 = pypdf.PdfWriter()
+    for _ in range(30):
+        w1.add_blank_page(width=72, height=72)
+    with open(p30, "wb") as f:
+        w1.write(f)
+
+    p10 = tmp_path / "doc10.pdf"
+    w2 = pypdf.PdfWriter()
+    for _ in range(10):
+        w2.add_blank_page(width=72, height=72)
+    with open(p10, "wb") as f:
+        w2.write(f)
+
+    docs = [
+        {"id": "1", "name": "doc30.pdf", "run": "UNSTART"},
+        {"id": "2", "name": "doc10.pdf", "run": "UNSTART"},
+        {"id": "3", "name": "doc_running.pdf", "run": "RUNNING", "_page_count": 40},
+    ]
+
+    sorted_docs = sort_documents_by_length(docs, sources_dir=tmp_path)
+    # RUNNING prioritized first, then shortest-first (10 pages, then 30 pages)
+    assert [d["name"] for d in sorted_docs] == ["doc_running.pdf", "doc10.pdf", "doc30.pdf"]
+
+
+def test_context_project_name_property(tmp_path: Path):
+    project_dir = tmp_path / "MySpecialProject"
+    project_dir.mkdir()
+    (project_dir / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    (project_dir / "sources").mkdir()
+
+    context = PipelineContext(data_dir=project_dir)
+    assert context.project_name == "MySpecialProject"
+
+    # Test metadata override
+    context.set_data("project_name", "OverriddenProject")
+    assert context.project_name == "OverriddenProject"
+
+
+def test_step_1_create_system_prompts_duplicate_chat_error(tmp_path: Path):
+    from bruno_populator.steps.step_1_create_system_prompts import CreateSystemPromptsStep
+
+    col_dir = tmp_path / "col"
+    col_dir.mkdir()
+    prompt_file = tmp_path / "prompt.md"
+    prompt_file.write_text("# Prompt\n", encoding="utf-8")
+
+    project_dir = tmp_path / "TestProject"
+    project_dir.mkdir()
+    (project_dir / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    (project_dir / "sources").mkdir()
+
+    step = CreateSystemPromptsStep(collection_dir=col_dir, prompt_path=prompt_file)
+    context = PipelineContext(data_dir=project_dir)
+
+    duplicate_error_result = [
+        {
+            "results": [
+                {
+                    "name": "Create Chat System Prompt",
+                    "response": {
+                        "data": {
+                            "code": 102,
+                            "message": "Duplicated chat name in creating chat.",
+                        }
+                    },
+                },
+                {"name": "Upload Document", "response": {"data": {"data": {"id": "doc1"}}}},
+                {"name": "Create Persona Prompts", "response": {"data": {"data": {"answer": "answer {knowledge}"}}}},
+            ]
+        }
+    ]
+
+    with pytest.raises(BrunoPopulatorError, match="RAGFlow rejects duplicate names"):
+        step.verify_result(context, duplicate_error_result)
+
+
+def test_step_2_create_dataset_duplicate_dataset_error(tmp_path: Path):
+    from bruno_populator.steps.step_2_create_dataset import CreateDatasetStep
+
+    col_dir = tmp_path / "col"
+    col_dir.mkdir()
+
+    project_dir = tmp_path / "TestProject"
+    project_dir.mkdir()
+    (project_dir / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    (project_dir / "sources").mkdir()
+
+    step = CreateDatasetStep(collection_dir=col_dir)
+    context = PipelineContext(data_dir=project_dir)
+
+    duplicate_error_result = [
+        {
+            "results": [
+                {
+                    "name": "Create Dataset",
+                    "response": {
+                        "data": {
+                            "code": 102,
+                            "message": "Duplicated dataset name in creating dataset.",
+                        }
+                    },
+                }
+            ]
+        }
+    ]
+
+    with pytest.raises(BrunoPopulatorError, match="RAGFlow rejects duplicate names"):
+        step.verify_result(context, duplicate_error_result)
+
+
+def test_step_1_preprocess_injects_project_chat_name(tmp_path: Path):
+    from bruno_populator.steps.step_1_create_system_prompts import CreateSystemPromptsStep
+
+    col_dir = tmp_path / "col"
+    col_dir.mkdir()
+    prompt_file = tmp_path / "prompt.md"
+    prompt_file.write_text("Test System Prompt Content", encoding="utf-8")
+
+    chat_yml = col_dir / "Create Chat System Prompt.yml"
+    chat_yml.write_text(
+        """info:
+  name: Create Chat System Prompt
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/chats
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Old Chat Name",
+        "prompt_config": {
+          "system": "Old System"
+        }
+      }
+""",
+        encoding="utf-8",
+    )
+
+    upload_yml = col_dir / "Upload Document.yml"
+    upload_yml.write_text(
+        """info:
+  name: Upload Document
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/upload
+  body:
+    type: multipart
+    multipart:
+      - name: file
+        type: file
+        value: []
+""",
+        encoding="utf-8",
+    )
+
+    project_dir = tmp_path / "SmartMobility"
+    project_dir.mkdir()
+    (project_dir / "requirements.md").write_text("# Smart Mobility Req\n", encoding="utf-8")
+    (project_dir / "sources").mkdir()
+
+    step = CreateSystemPromptsStep(collection_dir=col_dir, prompt_path=prompt_file)
+    context = PipelineContext(data_dir=project_dir)
+
+    step.preprocess(context)
+
+    # Read modified chat_yml
+    raw_content = chat_yml.read_text(encoding="utf-8")
+    assert "Create System Prompt Chats Auto - SmartMobility" in raw_content
+    assert "Test System Prompt Content" in raw_content
+
+
+def test_step_2_preprocess_injects_project_dataset_name(tmp_path: Path):
+    from bruno_populator.steps.step_2_create_dataset import CreateDatasetStep
+
+    col_dir = tmp_path / "col"
+    col_dir.mkdir()
+
+    dataset_yml = col_dir / "Create Dataset.yml"
+    dataset_yml.write_text(
+        """info:
+  name: Create Dataset
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/datasets
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Old Dataset Name",
+        "parse_type": 1
+      }
+""",
+        encoding="utf-8",
+    )
+
+    upload_yml = col_dir / "Upload Documents.yml"
+    upload_yml.write_text(
+        """info:
+  name: Upload Documents
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: http://localhost:9222/api/v1/upload
+  body:
+    type: multipart
+    multipart:
+      - name: file
+        type: file
+        value: []
+""",
+        encoding="utf-8",
+    )
+
+    project_dir = tmp_path / "AutonomousVehicles"
+    project_dir.mkdir()
+    (project_dir / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    sources_dir = project_dir / "sources"
+    sources_dir.mkdir()
+    (sources_dir / "guide.pdf").write_bytes(b"%PDF-1.4 dummy")
+
+    step = CreateDatasetStep(collection_dir=col_dir)
+    context = PipelineContext(data_dir=project_dir)
+
+    step.preprocess(context)
+
+    raw_content = dataset_yml.read_text(encoding="utf-8")
+    assert '"name": "AutonomousVehicles"' in raw_content

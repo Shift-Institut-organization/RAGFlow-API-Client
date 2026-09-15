@@ -52,6 +52,11 @@ class PipelineContext(BaseModel):
         return self.config.data_dir
 
     @property
+    def project_name(self) -> str:
+        """Return project name derived from metadata override or data_dir folder name."""
+        return str(self.metadata.get("project_name") or self.data_dir.name)
+
+    @property
     def state_file_path(self) -> Path:
         return self.data_dir / CONTEXT_STATE_FILENAME
 

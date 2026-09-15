@@ -79,6 +79,11 @@ Both items are required:
 - `requirements.md`: Parsed during feature extraction to discover personas and formulate system prompts.
 - `sources/`: All files placed here are uploaded to the RAGFlow dataset and sequentially parsed.
 
+> **Unique Project Names Required:** RAGFlow strictly enforces tenant-wide uniqueness for both dataset and chat names.
+> - The RAGFlow dataset is named directly after your project folder (`<Project>`).
+> - The system prompt generation chat is named `Create System Prompt Chats Auto - <Project>`.
+> If a dataset or chat with the same name already exists on your RAGFlow instance, RAGFlow will reject creation requests with a duplicate name error
+
 ---
 
 ## Scripts & Usage
