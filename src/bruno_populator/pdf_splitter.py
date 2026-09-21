@@ -112,9 +112,11 @@ def prepare_staged_documents(
     source_files: list[Path],
     staged_dir: Path,
     max_pages: int = DEFAULT_MAX_PAGES,
+    force_split: bool = False,
 ) -> list[Path]:
     """
     Process source files into staged_dir, splitting any PDF exceeding max_pages into compliant parts.
+    Reuses existing staged files or split parts if already present in staged_dir.
     Returns a sorted list of all compliant staged file paths.
     """
     staged_dir.mkdir(parents=True, exist_ok=True)
@@ -123,7 +125,16 @@ def prepare_staged_documents(
     for src in source_files:
         if not src.is_file():
             continue
-        parts = split_pdf_file(src, staged_dir, max_pages=max_pages)
-        all_staged.extend(parts)
+
+        direct_file = staged_dir / src.name
+        parts = sorted(staged_dir.glob(f"{src.stem}_p*-*{src.suffix}"))
+
+        if not force_split and direct_file.is_file():
+            all_staged.append(direct_file)
+        elif not force_split and parts:
+            all_staged.extend(parts)
+        else:
+            parts = split_pdf_file(src, staged_dir, max_pages=max_pages)
+            all_staged.extend(parts)
 
     return sorted(all_staged, key=lambda p: p.name)

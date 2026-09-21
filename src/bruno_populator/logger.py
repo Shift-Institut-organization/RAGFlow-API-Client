@@ -4,7 +4,10 @@ import logging
 import os
 import sys
 from enum import Enum
+from pathlib import Path
 from typing import Any
+
+from paths import DEFAULT_LOG_FILE
 
 
 class LogLevelMode(str, Enum):
@@ -67,11 +70,13 @@ def parse_log_level(level_val: Any) -> int:
 def get_logger(
     name: str = "bruno_populator",
     level: int | str | None = None,
+    log_file: Path | str | None = DEFAULT_LOG_FILE,
 ) -> logging.Logger:
     """
     Retrieve or create a configured logger with standard formatting.
 
     If level is provided, it explicitly overrides. Otherwise, uses the active LogLevelMode environment setting.
+    If log_file is provided (defaults to DEFAULT_LOG_FILE), logs will also be appended to that file.
     """
     logger = logging.getLogger(name)
 
@@ -82,19 +87,36 @@ def get_logger(
 
     logger.setLevel(target_level)
 
-    if not logger.handlers:
+    formatter = logging.Formatter(
+        fmt="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Console stream handler
+    has_stream_handler = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in logger.handlers
+    )
+    if not has_stream_handler:
         if hasattr(sys.stdout, "reconfigure"):
             try:
                 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
 
-        handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            fmt="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+    # File handler
+    if log_file:
+        resolved_file = Path(log_file).resolve()
+        has_file_handler = any(
+            isinstance(h, logging.FileHandler) and Path(h.baseFilename) == resolved_file for h in logger.handlers
         )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        if not has_file_handler:
+            resolved_file.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(resolved_file, encoding="utf-8")
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
     return logger

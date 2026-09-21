@@ -1253,6 +1253,69 @@ def test_prepare_staged_documents(tmp_path: Path):
     assert "doc_large_p041-055.pdf" in staged_names
 
 
+def test_prepare_staged_documents_skips_when_up_to_date(tmp_path: Path, monkeypatch):
+    import pypdf
+
+    import bruno_populator.pdf_splitter as splitter_mod
+    from bruno_populator.pdf_splitter import prepare_staged_documents
+
+    src_dir = tmp_path / "sources"
+    src_dir.mkdir()
+
+    small = src_dir / "doc_small.pdf"
+    w1 = pypdf.PdfWriter()
+    for _ in range(5):
+        w1.add_blank_page(width=72, height=72)
+    with open(small, "wb") as f:
+        w1.write(f)
+
+    large = src_dir / "doc_large.pdf"
+    w2 = pypdf.PdfWriter()
+    for _ in range(45):
+        w2.add_blank_page(width=72, height=72)
+    with open(large, "wb") as f:
+        w2.write(f)
+
+    staged_dir = tmp_path / "staged"
+
+    # 1. Initial run creates staged files (1 direct small + 2 parts from large = 3 files)
+    staged_1 = prepare_staged_documents([small, large], staged_dir, max_pages=40)
+    assert len(staged_1) == 3
+
+    # 2. Second run skips splitting using pathlib checks
+    split_calls = []
+    orig_split = splitter_mod.split_pdf_file
+
+    def spy_split(*args, **kwargs):
+        split_calls.append(args)
+        return orig_split(*args, **kwargs)
+
+    monkeypatch.setattr(splitter_mod, "split_pdf_file", spy_split)
+
+    staged_2 = prepare_staged_documents([small, large], staged_dir, max_pages=40)
+    assert len(staged_2) == 3
+    assert split_calls == []  # No splitting took place
+
+    # 3. force_split=True forces re-splitting
+    staged_3 = prepare_staged_documents([small, large], staged_dir, max_pages=40, force_split=True)
+    assert len(staged_3) == 3
+    assert len(split_calls) == 2  # Both source files split
+
+    # 4. Adding a new file only splits the new file while reusing existing ones
+    split_calls.clear()
+    new_doc = src_dir / "doc_new.pdf"
+    w3 = pypdf.PdfWriter()
+    for _ in range(5):
+        w3.add_blank_page(width=72, height=72)
+    with open(new_doc, "wb") as f:
+        w3.write(f)
+
+    staged_4 = prepare_staged_documents([small, large, new_doc], staged_dir, max_pages=40)
+    assert len(staged_4) == 4
+    assert len(split_calls) == 1
+    assert split_calls[0][0] == new_doc  # Only new_doc was processed
+
+
 def test_cancel_document_parse(tmp_path: Path, monkeypatch):
     from bruno_populator.steps.step_2_create_dataset import cancel_document_parse
 

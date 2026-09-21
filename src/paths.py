@@ -20,3 +20,7 @@ SUMMARY_JSON_FILENAME = "summary.json"
 USER_FEATURES_FILENAME = "user_features.json"
 SOURCES_DIR_NAME = "sources"
 STEPS_DATA_DIR_NAME = "steps"
+
+# Logging paths
+LOGS_DIR = PROJECT_ROOT / "logs"
+DEFAULT_LOG_FILE = LOGS_DIR / "ragflow_client.log"
