@@ -12,12 +12,14 @@ bruno/**/*.json
 
 # Scratch scripts, temporary scripts, and runtime logs
 *.log
+logs/
 dummy_scripts/
 scratch/
  
 # Raw source files, document datasets, and user-provided PDFs/DOCs
 data/
 data/**
+docs
 
 # Python virtual environments
 .venv/
