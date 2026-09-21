@@ -86,6 +86,18 @@ class PipelineContext(BaseModel):
         sanitized_key = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in item_key)
         return self.steps_dir / f"{sanitized_step}_{sanitized_key}.json"
 
+    def get_single_call_output_path(self, request_name: str) -> Path:
+        """
+        Construct destination path for a single Bruno API call report within steps_dir.
+
+        Args:
+            request_name: Name of the single request (e.g. 'Get Documents', 'Parse Document').
+
+        Returns:
+            Absolute Path to target JSON file inside self.steps_dir.
+        """
+        return self.get_output_json_path("RAGFlow single calls", item_key=request_name)
+
     def set_data(self, key: str, value: Any) -> None:
         """Store key-value data in pipeline context metadata."""
         logger.debug(f"Pipeline Context updated: {key} = {value}")

@@ -202,14 +202,13 @@ final_context = runner.run()
 ---
 
 ## Quality & Verification Checklist
-Before completing work, always execute:
-```bash
-# 1. Run Unit Tests
-.\.venv\Scripts\pytest
+Before completing work, always execute all verification steps sequentially in one go:
 
-# 2. Check for 0 Lint Errors
-.\.venv\Scripts\ruff check .
+```powershell
+# Option A: Run automated batch script
+.\run_checks.bat
 
-# 3. Verify Formatting
-.\.venv\Scripts\ruff format --check .
+# Option B: Run sequential one-liner in PowerShell
+.\.venv\Scripts\pytest ; .\.venv\Scripts\ruff check . ; .\.venv\Scripts\ruff format --check .
 ```
+

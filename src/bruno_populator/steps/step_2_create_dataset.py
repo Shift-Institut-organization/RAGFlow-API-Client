@@ -51,12 +51,19 @@ def sort_documents_by_length(
     return sorted(docs, key=_doc_sort_key)
 
 
-def fetch_documents_status(context: PipelineContext, dataset_id: str) -> list[dict[str, Any]]:
-    """Fetch document parsing status list for dataset_id using Bruno CLI single request."""
-    single_calls_dir = (BRUNO_DIR / "RAGFlow single calls").resolve()
-    single_calls_dir.mkdir(parents=True, exist_ok=True)
+DEFAULT_SINGLE_CALLS_DIR = (BRUNO_DIR / "RAGFlow single calls").resolve()
 
-    request_file = single_calls_dir / "Get Documents.yml"
+
+def fetch_documents_status(
+    context: PipelineContext,
+    dataset_id: str,
+    single_calls_dir: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch document parsing status list for dataset_id using Bruno CLI single request."""
+    target_dir = (single_calls_dir or DEFAULT_SINGLE_CALLS_DIR).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    request_file = target_dir / "Get Documents.yml"
     builder = BrunoRequestBuilder(
         name="Get Documents",
         seq=1,
@@ -66,11 +73,16 @@ def fetch_documents_status(context: PipelineContext, dataset_id: str) -> list[di
     )
     builder.save(request_file)
 
-    open_col = single_calls_dir / "opencollection.yml"
+    open_col = target_dir / "opencollection.yml"
     if not open_col.exists():
         open_col.write_text("bundled: []\n", encoding="utf-8")
 
-    result_data = run_bruno_request(request_file)
+    output_json_path = context.get_single_call_output_path("Get Documents")
+    result_data = run_bruno_request(
+        request_file,
+        output_json_path=output_json_path,
+        token=context.api_key,
+    )
     docs = BaseCollectionStep.extract_value_by_key_path(result_data, "[0].results[0].response.data.data.docs")
     if not isinstance(docs, list):
         raise BrunoPopulatorError(
@@ -80,12 +92,17 @@ def fetch_documents_status(context: PipelineContext, dataset_id: str) -> list[di
     return docs
 
 
-def trigger_document_parse(context: PipelineContext, dataset_id: str, document_id: str) -> None:
+def trigger_document_parse(
+    context: PipelineContext,
+    dataset_id: str,
+    document_id: str,
+    single_calls_dir: Path | None = None,
+) -> None:
     """Trigger chunking/parsing for a single document ID via Bruno CLI single request."""
-    single_calls_dir = (BRUNO_DIR / "RAGFlow single calls").resolve()
-    single_calls_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = (single_calls_dir or DEFAULT_SINGLE_CALLS_DIR).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    request_file = single_calls_dir / "Parse Document.yml"
+    request_file = target_dir / "Parse Document.yml"
     builder = BrunoRequestBuilder(
         name="Parse Document",
         seq=1,
@@ -95,11 +112,16 @@ def trigger_document_parse(context: PipelineContext, dataset_id: str, document_i
     ).set_json_body({"document_ids": [document_id]})
     builder.save(request_file)
 
-    open_col = single_calls_dir / "opencollection.yml"
+    open_col = target_dir / "opencollection.yml"
     if not open_col.exists():
         open_col.write_text("bundled: []\n", encoding="utf-8")
 
-    result_data = run_bruno_request(request_file)
+    output_json_path = context.get_single_call_output_path("Parse Document")
+    result_data = run_bruno_request(
+        request_file,
+        output_json_path=output_json_path,
+        token=context.api_key,
+    )
     code = BaseCollectionStep.extract_value_by_key_path(result_data, "[0].results[0].response.data.code")
     if code is not None and code != 0:
         msg = (
@@ -111,12 +133,17 @@ def trigger_document_parse(context: PipelineContext, dataset_id: str, document_i
         )
 
 
-def cancel_document_parse(context: PipelineContext, dataset_id: str, document_id: str) -> None:
+def cancel_document_parse(
+    context: PipelineContext,
+    dataset_id: str,
+    document_id: str,
+    single_calls_dir: Path | None = None,
+) -> None:
     """Cancel/stop chunking/parsing for a single document ID via Bruno CLI single request."""
-    single_calls_dir = (BRUNO_DIR / "RAGFlow single calls").resolve()
-    single_calls_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = (single_calls_dir or DEFAULT_SINGLE_CALLS_DIR).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    request_file = single_calls_dir / "Cancel Document Parse.yml"
+    request_file = target_dir / "Cancel Document Parse.yml"
     builder = BrunoRequestBuilder(
         name="Cancel Document Parse",
         seq=1,
@@ -126,11 +153,16 @@ def cancel_document_parse(context: PipelineContext, dataset_id: str, document_id
     ).set_json_body({"document_ids": [document_id]})
     builder.save(request_file)
 
-    open_col = single_calls_dir / "opencollection.yml"
+    open_col = target_dir / "opencollection.yml"
     if not open_col.exists():
         open_col.write_text("bundled: []\n", encoding="utf-8")
 
-    result_data = run_bruno_request(request_file)
+    output_json_path = context.get_single_call_output_path("Cancel Document Parse")
+    result_data = run_bruno_request(
+        request_file,
+        output_json_path=output_json_path,
+        token=context.api_key,
+    )
     code = BaseCollectionStep.extract_value_by_key_path(result_data, "[0].results[0].response.data.code")
     if code is not None and code != 0:
         msg = (

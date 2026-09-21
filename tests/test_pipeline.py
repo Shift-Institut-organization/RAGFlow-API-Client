@@ -574,7 +574,7 @@ def test_sequential_document_parsing_trigger_error_retry(monkeypatch):
     assert trigger_counts["doc1"] == 2
 
 
-def test_trigger_document_parse_api_error(monkeypatch):
+def test_trigger_document_parse_api_error(tmp_path: Path, monkeypatch):
     from bruno_populator.steps.step_2_create_dataset import trigger_document_parse
 
     context = PipelineContext(base_url="http://localhost:9222")
@@ -596,11 +596,12 @@ def test_trigger_document_parse_api_error(monkeypatch):
     ]
 
     monkeypatch.setattr(
-        "bruno_populator.steps.step_2_create_dataset.run_bruno_request", lambda req_file: mock_error_report
+        "bruno_populator.steps.step_2_create_dataset.run_bruno_request",
+        lambda req_file, *args, **kwargs: mock_error_report,
     )
 
     with pytest.raises(BrunoPopulatorError, match="RAGFlow API error starting document parsing"):
-        trigger_document_parse(context, "ds-1", "doc-1")
+        trigger_document_parse(context, "ds-1", "doc-1", single_calls_dir=tmp_path / "single_calls")
 
 
 def test_sequential_document_parsing_progress_resets_timeout(monkeypatch):
@@ -1252,19 +1253,19 @@ def test_prepare_staged_documents(tmp_path: Path):
     assert "doc_large_p041-055.pdf" in staged_names
 
 
-def test_cancel_document_parse(monkeypatch):
+def test_cancel_document_parse(tmp_path: Path, monkeypatch):
     from bruno_populator.steps.step_2_create_dataset import cancel_document_parse
 
     context = PipelineContext(base_url="http://localhost:9222")
     executed_requests = []
 
-    def mock_run(req_file):
+    def mock_run(req_file, *args, **kwargs):
         executed_requests.append(req_file.name)
         return [{"results": [{"response": {"status": 200, "data": {"code": 0}}}]}]
 
     monkeypatch.setattr("bruno_populator.steps.step_2_create_dataset.run_bruno_request", mock_run)
 
-    cancel_document_parse(context, "dataset-xyz", "doc-123")
+    cancel_document_parse(context, "dataset-xyz", "doc-123", single_calls_dir=tmp_path / "single_calls")
     assert executed_requests == ["Cancel Document Parse.yml"]
 
 
@@ -1548,3 +1549,62 @@ http:
 
     raw_content = dataset_yml.read_text(encoding="utf-8")
     assert '"name": "AutonomousVehicles"' in raw_content
+
+
+def test_single_call_output_path_routing(tmp_path: Path, monkeypatch):
+    """Verify that single Bruno calls route their output JSON to context.steps_dir."""
+    from bruno_populator.steps.step_2_create_dataset import (
+        cancel_document_parse,
+        fetch_documents_status,
+        trigger_document_parse,
+    )
+
+    data_dir = tmp_path / "MyProject"
+    data_dir.mkdir()
+    (data_dir / "requirements.md").write_text("# Requirements\n", encoding="utf-8")
+    context = PipelineContext(data_dir=data_dir)
+
+    captured_calls = []
+
+    def mock_run(request_file_path, env=None, output_json_path=None, token=None):
+        captured_calls.append(
+            {
+                "req_file": request_file_path.name,
+                "output_json_path": output_json_path,
+                "token": token,
+            }
+        )
+        if "Get Documents" in request_file_path.name:
+            return [{"results": [{"response": {"data": {"code": 0, "data": {"docs": []}}}}]}]
+        return [{"results": [{"response": {"data": {"code": 0, "message": "success"}}}]}]
+
+    monkeypatch.setattr("bruno_populator.steps.step_2_create_dataset.run_bruno_request", mock_run)
+
+    single_calls_dir = tmp_path / "single_calls"
+
+    # 1. Test fetch_documents_status
+    docs = fetch_documents_status(context, "dataset-123", single_calls_dir=single_calls_dir)
+    assert docs == []
+    assert len(captured_calls) == 1
+    assert captured_calls[0]["req_file"] == "Get Documents.yml"
+    assert captured_calls[0]["output_json_path"] == context.get_single_call_output_path("Get Documents")
+    assert captured_calls[0]["output_json_path"] == data_dir / "steps" / "RAGFlow single calls_Get_Documents.json"
+    assert captured_calls[0]["token"] == context.api_key
+
+    # 2. Test trigger_document_parse
+    trigger_document_parse(context, "dataset-123", "doc-456", single_calls_dir=single_calls_dir)
+    assert len(captured_calls) == 2
+    assert captured_calls[1]["req_file"] == "Parse Document.yml"
+    assert captured_calls[1]["output_json_path"] == context.get_single_call_output_path("Parse Document")
+    assert captured_calls[1]["output_json_path"] == data_dir / "steps" / "RAGFlow single calls_Parse_Document.json"
+    assert captured_calls[1]["token"] == context.api_key
+
+    # 3. Test cancel_document_parse
+    cancel_document_parse(context, "dataset-123", "doc-456", single_calls_dir=single_calls_dir)
+    assert len(captured_calls) == 3
+    assert captured_calls[2]["req_file"] == "Cancel Document Parse.yml"
+    assert captured_calls[2]["output_json_path"] == context.get_single_call_output_path("Cancel Document Parse")
+    assert (
+        captured_calls[2]["output_json_path"] == data_dir / "steps" / "RAGFlow single calls_Cancel_Document_Parse.json"
+    )
+    assert captured_calls[2]["token"] == context.api_key
